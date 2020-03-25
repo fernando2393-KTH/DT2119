@@ -2,6 +2,7 @@
 
 # Function given by the exercise ----------------------------------
 
+
 def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000)
     """Computes Mel Filterbank features.
 
