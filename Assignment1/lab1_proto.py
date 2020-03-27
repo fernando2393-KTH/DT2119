@@ -1,9 +1,12 @@
 # DT2119, Lab 1 Feature Extraction
 
 # Function given by the exercise ----------------------------------
+from Assignment1.lab1_tools import lifter
+import math
+import numpy as np
 
 
-def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000)
+def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000):
     """Computes Mel Filterbank features.
 
     Args:
@@ -45,17 +48,45 @@ def mfcc(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, ncep
 
 # Functions to be implemented ----------------------------------
 
+
 def enframe(samples, winlen, winshift):
     """
     Slices the input samples into overlapping windows.
 
     Args:
+        samples: list of received samples.
         winlen: window length in samples.
         winshift: shift of consecutive windows in samples
     Returns:
         numpy array [N x winlen], where N is the number of windows that fit
         in the input signal
     """
+
+    # Calculate the number of needed windows
+    overlap = (len(samples) / (winlen - winshift)) * winshift  # Calculate number of overlapping samples
+    total_samples = len(samples) + overlap
+    n_windows = math.ceil(total_samples / winlen)
+
+    # Fill the matrix
+    enframed_samples = np.zeros((n_windows, winlen))  # Define the resulting matrix of samples
+    start = 0  # Define starting pointer of the sample array
+    end = min(winlen, len(samples))  # Define ending pointer of the sample array
+    enframed_samples[0, start:end] = samples[start:end]  # Enframe the first window of samples
+    overlap_samples = enframed_samples[0, winlen - winshift:winlen]  # Define the first overlap of samples
+    start = end  # Update starting pointer
+    end += min(winlen - winshift, len(samples) - end)  # Update ending pointer
+    for i in range(1, n_windows):
+        enframed_samples[i, 0:len(overlap_samples)] = overlap_samples
+        enframed_samples[i, len(overlap_samples):end - start + len(overlap_samples)] = samples[start:end]
+        overlap_samples = enframed_samples[i, winlen - winshift:winlen]
+        start = end
+        end += min(winlen - winshift, len(samples) - end)
+
+    return enframed_samples
+
+
+
+
     
 def preemp(input, p=0.97):
     """
