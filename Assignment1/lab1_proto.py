@@ -62,30 +62,22 @@ def enframe(samples, winlen, winshift):
         in the input signal
     """
 
-    # Calculate the number of needed windows
-    overlap = (len(samples) / (winlen - winshift)) * winshift  # Calculate number of overlapping samples
-    total_samples = len(samples) + overlap
-    n_windows = math.ceil(total_samples / winlen)
-
-    # Fill the matrix
-    enframed_samples = np.zeros((n_windows, winlen))  # Define the resulting matrix of samples
+    enframed_samples = np.zeros((1, winlen))  # Define the resulting matrix of samples
     start = 0  # Define starting pointer of the sample array
     end = min(winlen, len(samples))  # Define ending pointer of the sample array
     enframed_samples[0, start:end] = samples[start:end]  # Enframe the first window of samples
     overlap_samples = enframed_samples[0, winlen - winshift:winlen]  # Define the first overlap of samples
     start = end  # Update starting pointer
     end += min(winlen - winshift, len(samples) - end)  # Update ending pointer
-    for i in range(1, n_windows):
-        enframed_samples[i, 0:len(overlap_samples)] = overlap_samples
-        enframed_samples[i, len(overlap_samples):end - start + len(overlap_samples)] = samples[start:end]
-        overlap_samples = enframed_samples[i, winlen - winshift:winlen]
+    while end - start + len(overlap_samples) == enframed_samples.shape[1]:  # While the sample fills the window
+        enframed_samples = np.vstack((enframed_samples, np.zeros((1, winlen))))  # Generate new window
+        enframed_samples[-1, 0:len(overlap_samples)] = overlap_samples
+        enframed_samples[-1, len(overlap_samples):end - start + len(overlap_samples)] = samples[start:end]
+        overlap_samples = enframed_samples[-1, winlen - winshift:winlen]
         start = end
         end += min(winlen - winshift, len(samples) - end)
 
     return enframed_samples
-
-
-
 
     
 def preemp(input, p=0.97):
