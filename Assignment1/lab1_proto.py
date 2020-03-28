@@ -4,7 +4,7 @@
 from Assignment1.lab1_tools import lifter
 import math
 import numpy as np
-
+from scipy import signal
 
 def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000):
     """Computes Mel Filterbank features.
@@ -80,12 +80,12 @@ def enframe(samples, winlen, winshift):
     return enframed_samples
 
     
-def preemp(input, p=0.97):
+def preemp(samples, p=0.97):
     """
     Pre-emphasis filter.
 
     Args:
-        input: array of speech frames [N x M] where N is the number of frames and
+        samples: array of speech frames [N x M] where N is the number of frames and
                M the samples per frame
         p: preemhasis factor (defaults to the value specified in the exercise)
 
@@ -94,18 +94,28 @@ def preemp(input, p=0.97):
     Note (you can use the function lfilter from scipy.signal)
     """
 
-def windowing(input):
+    samples = signal.lfilter([1, -p], [1], samples)  # Apply filter to samples enframed matrix
+
+    return samples
+
+
+def windowing(samples):
     """
     Applies hamming window to the input frames.
 
     Args:
-        input: array of speech samples [N x M] where N is the number of frames and
+        samples: array of speech samples [N x M] where N is the number of frames and
                M the samples per frame
     Output:
         array of windoed speech samples [N x M]
     Note (you can use the function hamming from scipy.signal, include the sym=0 option
     if you want to get the same results as in the example)
     """
+
+    hamming_window = signal.hamming(samples.shape[1], sym=False)  # Obtain hamming window according to window shape
+
+    return hamming_window * samples  # Return samples once window is applied
+
 
 def powerSpectrum(input, nfft):
     """
