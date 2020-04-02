@@ -2,11 +2,12 @@
 
 # Function given by the exercise ----------------------------------
 
-from Assignment1.lab1_tools import lifter
-import math
+from Assignment1.lab1_tools import lifter, trfbank
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.fftpack import fft
+from scipy.fftpack.realtransforms import dct
 
 def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000):
     """Computes Mel Filterbank features.
@@ -119,12 +120,12 @@ def windowing(samples):
     return hamming_window * samples  # Return samples once window is applied
 
 
-def powerSpectrum(input, nfft):
+def powerSpectrum(sample, nfft):
     """
     Calculates the power spectrum of the input signal, that is the square of the modulus of the FFT
 
     Args:
-        input: array of speech samples [N x M] where N is the number of frames and
+        sample: array of speech samples [N x M] where N is the number of frames and
                M the samples per frame
         nfft: length of the FFT
     Output:
@@ -132,17 +133,18 @@ def powerSpectrum(input, nfft):
     Note: you can use the function fft from scipy.fftpack
     """
 
-    f = fft.fft(input, nfft)
-    powerSpectrum = (f.real + f.imag) ** 2
+    f = fft(sample, nfft)
+    power_spectrum = np.abs(pow(f, 2))
 
-    return powerSpectrum
+    return power_spectrum
 
-def logMelSpectrum(input, samplingrate):
+
+def logMelSpectrum(sample, samplingrate):
     """
     Calculates the log output of a Mel filterbank when the input is the power spectrum
 
     Args:
-        input: array of power spectrum coefficients [N x nfft] where N is the number of frames and
+        sample: array of power spectrum coefficients [N x nfft] where N is the number of frames and
                nfft the length of each spectrum
         samplingrate: sampling rate of the original signal (used to calculate the filterbank shapes)
     Output:
@@ -152,12 +154,18 @@ def logMelSpectrum(input, samplingrate):
           nmelfilters
     """
 
-def cepstrum(input, nceps):
+    trf = trfbank(samplingrate, sample.shape[1])
+    _mspec = np.log(sample @ trf.T)
+
+    return _mspec
+
+
+def cepstrum(sample, nceps):
     """
     Calulates Cepstral coefficients from mel spectrum applying Discrete Cosine Transform
 
     Args:
-        input: array of log outputs of Mel scale filterbank [N x nmelfilters] where N is the
+        sample: array of log outputs of Mel scale filterbank [N x nmelfilters] where N is the
                number of frames and nmelfilters the length of the filterbank
         nceps: number of output cepstral coefficients
     Output:
@@ -165,9 +173,10 @@ def cepstrum(input, nceps):
     Note: you can use the function dct from scipy.fftpack.realtransforms
     """
 
-    cepstralCoeff = fft.dct(input, norm = "ortho")[:, 0:nceps]
+    cepstral_coeff = dct(sample)[:, :nceps]
     
-    return cepstralCoeff
+    return cepstral_coeff
+
 
 def dtw(x, y, dist):
     """Dynamic Time Warping.
@@ -186,6 +195,34 @@ def dtw(x, y, dist):
     Note that you only need to define the first output for this exercise.
     """
 
+
 def main():
-    FFT = powerSpectrum(windowed, 512)
-    ceps = cepstrum(mspec, 13)
+    example = np.load('lab1_example.npz', allow_pickle=True)['example'].item()
+    samples = example['samples']
+    winlen = int(example['samplingrate'] * 0.02)
+    winshift = int(example['samplingrate'] * 0.01)
+
+    enframed = enframe(samples, winlen, winshift)
+    # plt.pcolormesh(enframed)
+    # plt.show()
+    pre_emphasized = preemp(enframed, p=0.97)
+    # plt.pcolormesh(pre_emphasized)
+    # plt.show()
+    windowed = windowing(pre_emphasized)
+    # plt.pcolormesh(windowed)
+    # plt.show()
+    _fft = powerSpectrum(windowed, 512)
+    # plt.pcolormesh(_fft)
+    # plt.show()
+    _mspec = logMelSpectrum(_fft, example['samplingrate'])
+    # plt.pcolormesh(_mspec)
+    # plt.show()
+    ceps = cepstrum(_mspec, 13)
+    plt.pcolormesh(ceps)
+    plt.show()
+    plt.pcolormesh(example['mfcc'])
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
