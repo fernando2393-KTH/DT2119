@@ -1,9 +1,9 @@
 # DT2119, Lab 1 Feature Extraction
 
 # Function given by the exercise ----------------------------------
+from scipy.fftpack import fft
 
-
-def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000)
+def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000):
     """Computes Mel Filterbank features.
 
     Args:
@@ -97,6 +97,11 @@ def powerSpectrum(input, nfft):
     Note: you can use the function fft from scipy.fftpack
     """
 
+    f = fft.fft(input, nfft)
+    powerSpectrum = (f.real + f.imag) ** 2
+
+    return powerSpectrum
+
 def logMelSpectrum(input, samplingrate):
     """
     Calculates the log output of a Mel filterbank when the input is the power spectrum
@@ -125,6 +130,10 @@ def cepstrum(input, nceps):
     Note: you can use the function dct from scipy.fftpack.realtransforms
     """
 
+    cepstralCoeff = fft.dct(input, norm = "ortho")[:, 0:nceps]
+    
+    return cepstralCoeff
+
 def dtw(x, y, dist):
     """Dynamic Time Warping.
 
@@ -141,3 +150,7 @@ def dtw(x, y, dist):
 
     Note that you only need to define the first output for this exercise.
     """
+
+def main():
+    FFT = powerSpectrum(windowed, 512)
+    ceps = cepstrum(mspec, 13)
