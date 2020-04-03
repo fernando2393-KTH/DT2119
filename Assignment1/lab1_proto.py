@@ -5,11 +5,13 @@
 from Assignment1.lab1_tools import lifter, trfbank
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist as euclidean
 from scipy import signal
 from scipy.fftpack import fft
 from scipy.fftpack.realtransforms import dct
 
-def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000):
+
+def mspec(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, samplingrate=20000):
     """Computes Mel Filterbank features.
 
     Args:
@@ -29,7 +31,8 @@ def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, sam
     spec = powerSpectrum(windowed, nfft)
     return logMelSpectrum(spec, samplingrate)
 
-def mfcc(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, nceps=13, samplingrate=20000, liftercoeff=22):
+
+def mfcc(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, nceps=13, samplingrate=20000, liftercoeff=22):
     """Computes Mel Frequency Cepstrum Coefficients.
 
     Args:
@@ -178,22 +181,40 @@ def cepstrum(sample, nceps):
     return cepstral_coeff
 
 
-def dtw(x, y, dist):
+def dtw(x, y, dist=euclidean):
     """Dynamic Time Warping.
 
     Args:
-        x, y: arrays of size NxD and MxD respectively, where D is the dimensionality
-              and N, M are the respective lenghts of the sequences
+        x: arrays of size NxD and MxD respectively, where D is the dimensionality
+           and N, M are the respective lenghts of the sequences
+        y: arrays of size NxD and MxD respectively, where D is the dimensionality
+           and N, M are the respective lenghts of the sequences
         dist: distance function (can be used in the code as dist(x[i], y[j]))
 
     Outputs:
-        d: global distance between the sequences (scalar) normalized to len(x)+len(y)
-        LD: local distance between frames from x and y (NxM matrix)
-        AD: accumulated distance between frames of x and y (NxM matrix)
-        path: best path thtough AD
+        gl_distance: global distance between the sequences (scalar) normalized to len(x)+len(y)
+        lc_dist: local distance between frames from x and y (NxM matrix)
+        acc_dist: accumulated distance between frames of x and y (NxM matrix)
+        path: best path thtough acc_dist
 
     Note that you only need to define the first output for this exercise.
     """
+
+    lc_dist = dist(x, y)  # Calculation of the local distances
+    acc_dist = float('inf') * np.ones(lc_dist.shape)  # Initialization of acc. distances
+    acc_dist[0, 0] = lc_dist[0, 0]  # First distance --> nothing accumulated
+    for i in range(1, acc_dist.shape[1]):
+        acc_dist[0, i] = acc_dist[0, i - 1] + lc_dist[0, i]  # 1st row
+    for i in range(1, acc_dist.shape[0]):
+        acc_dist[i, 0] = acc_dist[i - 1, 0] + lc_dist[i, 0]  # 1st col
+
+    for i in range(1, acc_dist.shape[0]):
+        for j in range(1, acc_dist.shape[1]):
+            acc_dist[i, j] = lc_dist[i, j] + min(acc_dist[i - 1, j], acc_dist[i, j - 1], acc_dist[i - 1, j - 1])
+
+    gl_distance = acc_dist[-1, -1] / (x.shape[0] + y.shape[0])
+
+    return gl_distance, lc_dist, acc_dist
 
 
 def main():
@@ -203,24 +224,22 @@ def main():
     winshift = int(example['samplingrate'] * 0.01)
 
     enframed = enframe(samples, winlen, winshift)
-    # plt.pcolormesh(enframed)
-    # plt.show()
+    plt.pcolormesh(enframed)
+    plt.show()
     pre_emphasized = preemp(enframed, p=0.97)
-    # plt.pcolormesh(pre_emphasized)
-    # plt.show()
+    plt.pcolormesh(pre_emphasized)
+    plt.show()
     windowed = windowing(pre_emphasized)
-    # plt.pcolormesh(windowed)
-    # plt.show()
+    plt.pcolormesh(windowed)
+    plt.show()
     _fft = powerSpectrum(windowed, 512)
-    # plt.pcolormesh(_fft)
-    # plt.show()
+    plt.pcolormesh(_fft)
+    plt.show()
     _mspec = logMelSpectrum(_fft, example['samplingrate'])
-    # plt.pcolormesh(_mspec)
-    # plt.show()
+    plt.pcolormesh(_mspec)
+    plt.show()
     ceps = cepstrum(_mspec, 13)
     plt.pcolormesh(ceps)
-    plt.show()
-    plt.pcolormesh(example['mfcc'])
     plt.show()
 
 
