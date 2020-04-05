@@ -2,7 +2,7 @@
 
 # Function given by the exercise ----------------------------------
 
-from lab1_tools import lifter, trfbank
+from lab1_tools import lifter, trfbank, tidigit2labels
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist as euclidean
@@ -10,6 +10,7 @@ from scipy import signal
 from scipy.fftpack import fft
 from scipy.fftpack.realtransforms import dct
 import sklearn.mixture as mix
+from scipy.cluster.hierarchy import linkage, dendrogram
 
 
 def mspec(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, samplingrate=20000):
@@ -245,22 +246,22 @@ def main():
     winshift = int(example['samplingrate'] * 0.01)
 
     enframed = enframe(samples, winlen, winshift)
-    plt.pcolormesh(enframed)
+    #plt.pcolormesh(enframed)
     #plt.show()
     pre_emphasized = preemp(enframed, p=0.97)
-    plt.pcolormesh(pre_emphasized)
+    #plt.pcolormesh(pre_emphasized)
     #plt.show()
     windowed = windowing(pre_emphasized)
-    plt.pcolormesh(windowed)
+    #plt.pcolormesh(windowed)
     #plt.show()
     _fft = powerSpectrum(windowed, 512)
-    plt.pcolormesh(_fft)
+    #plt.pcolormesh(_fft)
     #plt.show()
     _mspec = logMelSpectrum(_fft, example['samplingrate'])
-    plt.pcolormesh(_mspec)
+    #plt.pcolormesh(_mspec)
     #plt.show()
     ceps = cepstrum(_mspec, 13)
-    plt.pcolormesh(ceps)
+    #plt.pcolormesh(ceps)
     #plt.show()
 
     data = np.load('lab1_data.npz', allow_pickle=True)['data'] 
@@ -307,6 +308,19 @@ def main():
         posterior = g.predict_proba(mfcc_utterances[39])
         #plotPosterior(posterior, component, 39)
 
+    global_distances = np.zeros((len(mfcc_utterances), len(mfcc_utterances)))
+    
+    for i in range(global_distances.shape[0]):
+        for j in range(global_distances.shape[1]):
+            global_distances[i, j] = dtw(mfcc_utterances[i], mfcc_utterances[j])[0]
+
+    plt.pcolormesh(global_distances)
+    plt.colorbar()
+    plt.show()
+
+    linkage_distances       = linkage(global_distances, method='complete')
+    labels                  = tidigit2labels(data)
+    dn                      = dendrogram(linkage_distances, labels=labels)
 
 if __name__ == "__main__":
     main()
