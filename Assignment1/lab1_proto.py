@@ -11,6 +11,7 @@ from scipy.fftpack import fft
 from scipy.fftpack.realtransforms import dct
 import sklearn.mixture as mix
 from scipy.cluster.hierarchy import linkage, dendrogram
+from scipy.cluster import hierarchy
 
 
 def mspec(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, samplingrate=20000):
@@ -321,6 +322,9 @@ def main():
     linkage_distances       = linkage(global_distances, method='complete')
     labels                  = tidigit2labels(data)
     dn                      = dendrogram(linkage_distances, labels=labels)
+
+    hierarchy.set_link_color_palette(['m', 'c', 'y', 'k'])
+    plt.show()
 
 if __name__ == "__main__":
     main()
