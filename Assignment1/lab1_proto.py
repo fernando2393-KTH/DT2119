@@ -10,7 +10,8 @@ from scipy.fftpack import fft
 from scipy.fftpack.realtransforms import dct
 import sklearn.mixture as mix
 
-def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000):
+
+def mspec(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, samplingrate=20000):
     """Computes Mel Filterbank features.
 
     Args:
@@ -30,7 +31,8 @@ def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, sam
     spec = powerSpectrum(windowed, nfft)
     return logMelSpectrum(spec, samplingrate)
 
-def mfcc(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, nceps=13, samplingrate=20000, liftercoeff=22):
+
+def mfcc(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, nceps=13, samplingrate=20000, liftercoeff=22):
     """Computes Mel Frequency Cepstrum Coefficients.
 
     Args:
