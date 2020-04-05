@@ -5,6 +5,7 @@
 from lab1_tools import lifter, trfbank
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist as euclidean
 from scipy import signal
 from scipy.fftpack import fft
 from scipy.fftpack.realtransforms import dct
@@ -181,22 +182,39 @@ def cepstrum(sample, nceps):
     return cepstral_coeff
 
 
-def dtw(x, y, dist):
+def dtw(x, y, dist=euclidean):
     """Dynamic Time Warping.
 
     Args:
-        x, y: arrays of size NxD and MxD respectively, where D is the dimensionality
-              and N, M are the respective lenghts of the sequences
+        x: arrays of size NxD and MxD respectively, where D is the dimensionality
+           and N, M are the respective lenghts of the sequences
+        y: arrays of size NxD and MxD respectively, where D is the dimensionality
+           and N, M are the respective lenghts of the sequences
         dist: distance function (can be used in the code as dist(x[i], y[j]))
 
     Outputs:
-        d: global distance between the sequences (scalar) normalized to len(x)+len(y)
-        LD: local distance between frames from x and y (NxM matrix)
-        AD: accumulated distance between frames of x and y (NxM matrix)
-        path: best path thtough AD
+        gl_distance: global distance between the sequences (scalar) normalized to len(x)+len(y)
+        lc_dist: local distance between frames from x and y (NxM matrix)
+        acc_dist: accumulated distance between frames of x and y (NxM matrix)
+        path: best path thtough acc_dist
 
     Note that you only need to define the first output for this exercise.
     """
+    lc_dist = dist(x, y)  # Calculation of the local distances
+    acc_dist = float('inf') * np.ones(lc_dist.shape)  # Initialization of acc. distances
+    acc_dist[0, 0] = lc_dist[0, 0]  # First distance --> nothing accumulated
+    for i in range(1, acc_dist.shape[1]):
+        acc_dist[0, i] = acc_dist[0, i - 1] + lc_dist[0, i]  # 1st row
+    for i in range(1, acc_dist.shape[0]):
+        acc_dist[i, 0] = acc_dist[i - 1, 0] + lc_dist[i, 0]  # 1st col
+
+    for i in range(1, acc_dist.shape[0]):
+        for j in range(1, acc_dist.shape[1]):
+            acc_dist[i, j] = lc_dist[i, j] + min(acc_dist[i - 1, j], acc_dist[i, j - 1], acc_dist[i - 1, j - 1])
+
+    gl_distance = acc_dist[-1, -1] / (x.shape[0] + y.shape[0])
+
+    return gl_distance, lc_dist, acc_dist
 
 def mspec_only(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, nceps=13, samplingrate=20000, liftercoeff=22):
     frames = enframe(samples, winlen, winshift)
@@ -220,6 +238,30 @@ def plotPosterior(posterior, component, ut):
     plt.show()
 
 def main():
+
+    example = np.load('lab1_example.npz', allow_pickle=True)['example'].item()
+    samples = example['samples']
+    winlen = int(example['samplingrate'] * 0.02)
+    winshift = int(example['samplingrate'] * 0.01)
+
+    enframed = enframe(samples, winlen, winshift)
+    plt.pcolormesh(enframed)
+    #plt.show()
+    pre_emphasized = preemp(enframed, p=0.97)
+    plt.pcolormesh(pre_emphasized)
+    #plt.show()
+    windowed = windowing(pre_emphasized)
+    plt.pcolormesh(windowed)
+    #plt.show()
+    _fft = powerSpectrum(windowed, 512)
+    plt.pcolormesh(_fft)
+    #plt.show()
+    _mspec = logMelSpectrum(_fft, example['samplingrate'])
+    plt.pcolormesh(_mspec)
+    #plt.show()
+    ceps = cepstrum(_mspec, 13)
+    plt.pcolormesh(ceps)
+    #plt.show()
 
     data = np.load('lab1_data.npz', allow_pickle=True)['data'] 
 
@@ -254,16 +296,16 @@ def main():
         g.fit(mfcc_data)
 
         posterior = g.predict_proba(mfcc_utterances[16])
-        plotPosterior(posterior, component, 16)
+        #plotPosterior(posterior, component, 16)
 
         posterior = g.predict_proba(mfcc_utterances[17])
-        plotPosterior(posterior, component, 17)
+        #plotPosterior(posterior, component, 17)
 
         posterior = g.predict_proba(mfcc_utterances[38])
-        plotPosterior(posterior, component, 38)
+        #plotPosterior(posterior, component, 38)
 
         posterior = g.predict_proba(mfcc_utterances[39])
-        plotPosterior(posterior, component, 39)
+        #plotPosterior(posterior, component, 39)
 
 
 if __name__ == "__main__":
