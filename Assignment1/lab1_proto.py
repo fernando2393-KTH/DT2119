@@ -2,12 +2,13 @@
 
 # Function given by the exercise ----------------------------------
 
-from Assignment1.lab1_tools import lifter, trfbank
+from lab1_tools import lifter, trfbank
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.fftpack import fft
 from scipy.fftpack.realtransforms import dct
+import sklearn.mixture as mix
 
 def mspec(samples, winlen = 400, winshift = 200, preempcoeff=0.97, nfft=512, samplingrate=20000):
     """Computes Mel Filterbank features.
@@ -195,33 +196,72 @@ def dtw(x, y, dist):
     Note that you only need to define the first output for this exercise.
     """
 
+def mspec_only(samples, winlen=400, winshift=200, preempcoeff=0.97, nfft=512, nceps=13, samplingrate=20000, liftercoeff=22):
+    frames = enframe(samples, winlen, winshift)
+    preemph = preemp(frames, preempcoeff)
+    windowed = windowing(preemph)
+    spec = powerSpectrum(windowed, nfft)
+    mspec = logMelSpectrum(spec, samplingrate)
+
+    return mspec
+
+def plotPosterior(posterior, component, ut):
+    sum_posterior = np.sum(posterior, axis=0).reshape(1,-1)
+    sum_posterior /= np.sum(posterior)
+    print("Posterior Probability " + str(sum_posterior))
+    plt.figure()
+    plt.pcolormesh(posterior)
+    plt.xlabel("Samples")
+    plt.ylabel("Components")
+    plt.title("Posterior probability GMM components " + str(component) + " utterance #" + str(ut))
+    plt.colorbar()
+    plt.show()
 
 def main():
-    example = np.load('lab1_example.npz', allow_pickle=True)['example'].item()
-    samples = example['samples']
-    winlen = int(example['samplingrate'] * 0.02)
-    winshift = int(example['samplingrate'] * 0.01)
 
-    enframed = enframe(samples, winlen, winshift)
-    # plt.pcolormesh(enframed)
-    # plt.show()
-    pre_emphasized = preemp(enframed, p=0.97)
-    # plt.pcolormesh(pre_emphasized)
-    # plt.show()
-    windowed = windowing(pre_emphasized)
-    # plt.pcolormesh(windowed)
-    # plt.show()
-    _fft = powerSpectrum(windowed, 512)
-    # plt.pcolormesh(_fft)
-    # plt.show()
-    _mspec = logMelSpectrum(_fft, example['samplingrate'])
-    # plt.pcolormesh(_mspec)
-    # plt.show()
-    ceps = cepstrum(_mspec, 13)
-    plt.pcolormesh(ceps)
-    plt.show()
-    plt.pcolormesh(example['mfcc'])
-    plt.show()
+    data = np.load('lab1_data.npz', allow_pickle=True)['data'] 
+
+    mfcc_utterances = []
+    mspec_utterances = []
+
+    for audio_sample in data:
+        mfcc_sample = mfcc(audio_sample["samples"])
+        mfcc_utterances.append(mfcc_sample)
+
+        mspec_sample = mspec_only(audio_sample["samples"])
+        mspec_utterances.append(mspec_sample)
+
+    mfcc_data = np.vstack(mfcc_utterances)
+    mspec_data = np.vstack(mspec_utterances)
+
+    mfcc_r = np.corrcoef(mfcc_data, rowvar = False)
+    mspec_r = np.corrcoef(mspec_data, rowvar = False)
+
+    #plt.pcolormesh(mfcc_r)
+    #plt.colorbar()
+    #plt.show()
+
+    #plt.pcolormesh(mspec_r)
+    #plt.colorbar()
+    #plt.show()
+
+    components = [4, 8, 16, 32]
+
+    for component in components:
+        g = mix.GaussianMixture(n_components=component)
+        g.fit(mfcc_data)
+
+        posterior = g.predict_proba(mfcc_utterances[16])
+        plotPosterior(posterior, component, 16)
+
+        posterior = g.predict_proba(mfcc_utterances[17])
+        plotPosterior(posterior, component, 17)
+
+        posterior = g.predict_proba(mfcc_utterances[38])
+        plotPosterior(posterior, component, 38)
+
+        posterior = g.predict_proba(mfcc_utterances[39])
+        plotPosterior(posterior, component, 39)
 
 
 if __name__ == "__main__":
