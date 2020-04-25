@@ -130,7 +130,7 @@ def forward(log_emlik, log_startprob, log_transmat):
     """
 
     forward_prob = np.zeros(log_emlik.shape)
-    forward_prob[0, :] = log_startprob[:-1] + log_emlik[0, :]  # Use all states but the last one --> ending state
+    forward_prob[0, :] = log_startprob[:-1] + log_emlik[0]  # Use all states but the last one --> ending state
 
     for n in range(1, forward_prob.shape[0]):
         for j in range(forward_prob.shape[1]):
@@ -166,6 +166,23 @@ def viterbi(log_emlik, log_startprob, log_transmat, force_final_state=True):
         viterbi_loglik: log likelihood of the best path
         viterbi_path: best path
     """
+
+    viterbi_loglik = np.zeros(log_emlik.shape)
+    viterbi_b_mat = np.zeros(log_emlik.shape, dtype=int)
+
+    viterbi_loglik[0] = log_startprob[:-1] + log_emlik[0]
+    for n in range(1, viterbi_loglik.shape[0]):
+        for j in range(viterbi_loglik.shape[1]):
+            viterbi_loglik[n, j] = np.max(viterbi_loglik[n - 1, :] + log_transmat[:-1, j]) + log_emlik[n, j]
+            viterbi_b_mat[n, j] = np.argmax(viterbi_loglik[n - 1, :] + log_transmat[:-1, j])
+
+    viterbi_path = [np.argmax(viterbi_b_mat[-1])]
+    for n in reversed(range(viterbi_b_mat.shape[0] - 1)):
+        viterbi_path.append(viterbi_b_mat[n, viterbi_path[-1]])
+    viterbi_path.reverse()
+
+    return np.max(viterbi_loglik[-1]), np.array(viterbi_path)
+
 
 
 def statePosteriors(log_alpha, log_beta):
@@ -211,6 +228,7 @@ def main():
 
     best_model = {}
     acc_count = 0
+    print("Running Forward algorithm...")
     np.seterr(divide='ignore')  # Suppress divide by zero warning
     for idx, dt in tqdm(enumerate(data)):  # Iterate over data samples
         maxloglik = None
@@ -223,6 +241,33 @@ def main():
             if maxloglik is None or maxloglik < loglik:  # If better likelihood found
                 best_model[idx] = digit  # Set most probable model
                 maxloglik = loglik  # Update max log likelihood
+        if dt['digit'] == best_model[idx]:
+            acc_count += 1
+        # print("The best model for utterance " + str(idx) + " was hmm: " + str(best_model[idx]))
+        # print("The real digit of utterance " + str(idx) + " was digit: " + str(dt['digit']) + "\n")
+    print("The accuracy of the predictions has been: " + str(np.round(acc_count / len(data) * 100, 2)) + "%")
+
+    # np.seterr(divide='ignore')  # Suppress divide by zero warning
+    # logalpha = forward(example['obsloglik'], np.log(word_hmms['o']['startprob']), np.log(word_hmms['o']['transmat']))
+    # vloglik, vpath = viterbi(example['obsloglik'], np.log(word_hmms['o']['startprob']),
+    #                          np.log(word_hmms['o']['transmat']))
+    # plt.pcolormesh(logalpha.T)
+    # plt.plot(vpath.T, color="red")
+    # plt.show()
+
+    best_model = {}
+    acc_count = 0
+    print("Running Viterbi algorithm...")
+    for idx, dt in tqdm(enumerate(data)):  # Iterate over data samples
+        maxloglik = None
+        for digit in word_hmms.keys():  # Iterate over hmms
+            obsloglik = log_multivariate_normal_density_diag(dt['lmfcc'], word_hmms[digit]['means'],
+                                                             word_hmms[digit]['covars'])
+            vloglik, vpath = viterbi(obsloglik, np.log(word_hmms[digit]['startprob']),
+                                     np.log(word_hmms[digit]['transmat']))
+            if maxloglik is None or maxloglik < vloglik:  # If better likelihood found
+                best_model[idx] = digit  # Set most probable model
+                maxloglik = vloglik  # Update max log likelihood
         if dt['digit'] == best_model[idx]:
             acc_count += 1
         # print("The best model for utterance " + str(idx) + " was hmm: " + str(best_model[idx]))
