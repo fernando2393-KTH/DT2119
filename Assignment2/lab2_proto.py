@@ -1,6 +1,8 @@
-import numpy as np
 from lab2_tools import *
 from prondict import prondict
+import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import tqdm
 
 
 def concatTwoHMMs(hmm1, hmm2):
@@ -43,13 +45,13 @@ def concatTwoHMMs(hmm1, hmm2):
     transmat = np.zeros((startprob.shape[0], startprob.shape[0]))
     for i in range(transmat.shape[0] - 1):
         for j in range(transmat.shape[1]):
-            if i < hmm1['startprob'].shape[0] - 1 and j < hmm1['startprob'].shape[0] - 1:  # Copy of hmm1 values
+            if i < hmm1['transmat'].shape[0] - 1 and j < hmm1['transmat'].shape[1] - 1:  # Copy of hmm1 values
                 transmat[i, j] = hmm1['transmat'][i, j]
-            elif i < hmm1['startprob'].shape[0] - 1:  # Product of the last value of hmm1 and values of hmm2
-                transmat[i, j] = hmm1['transmat'][i, -1] * hmm2['startprob'][j - (hmm1['startprob'].shape[0] - 1)]
-            elif j >= hmm1['startprob'].shape[0] - 1:  # Copy of hmm2 values
+            elif i < hmm1['transmat'].shape[0] - 1:  # Product of the last value of hmm1 and values of hmm2
+                transmat[i, j] = hmm1['transmat'][i, -1] * hmm2['startprob'][j - (hmm1['transmat'].shape[1] - 1)]
+            elif j >= hmm1['transmat'].shape[1] - 1:  # Copy of hmm2 values
                 transmat[i, j] = hmm2['transmat'][i - (hmm1['transmat'].shape[0] - 1),
-                                                  j - (hmm1['transmat'].shape[0] - 1)]
+                                                  j - (hmm1['transmat'].shape[1] - 1)]
     transmat[-1, -1] = 1  # Assign value 1 to the last transition
 
     means = np.vstack((hmm1['means'], hmm2['means']))
@@ -127,6 +129,15 @@ def forward(log_emlik, log_startprob, log_transmat):
         forward_prob: NxM array of forward log probabilities for each of the M states in the model
     """
 
+    forward_prob = np.zeros(log_emlik.shape)
+    forward_prob[0, :] = log_startprob[:-1] + log_emlik[0, :]  # Use all states but the last one --> ending state
+
+    for n in range(1, forward_prob.shape[0]):
+        for j in range(forward_prob.shape[1]):
+            forward_prob[n, j] = logsumexp(forward_prob[n - 1, :] + log_transmat[:-1, j]) + log_emlik[n, j]
+
+    return forward_prob
+
 
 def backward(log_emlik, log_startprob, log_transmat):
     """Backward (beta) probabilities in log domain.
@@ -188,12 +199,35 @@ def updateMeanAndVar(x, log_gamma, variance_floor=5.0):
 
 
 def main():
-    # example = np.load('lab2_example.npz', allow_pickle=True)['example'].item()
-    phone_hhms = np.load('lab2_models_onespkr.npz', allow_pickle=True)['phoneHMMs'].item()
-    isolated = {}
+    example = np.load('lab2_example.npz', allow_pickle=True)['example'].item()
+    phone_hhms = np.load('lab2_models_all.npz', allow_pickle=True)['phoneHMMs'].item()
+
+    # Concatenate all digit hmms
+    word_hmms = {}
     for digit in prondict.keys():
-        isolated[digit] = ['sil'] + prondict[digit] + ['sil']
-    word_hmms = {'o': concatHMMs(phone_hhms, isolated['o'])}
+        word_hmms[digit] = concatHMMs(phone_hhms, ['sil'] + prondict[digit] + ['sil'])
+
+    data = np.load('lab2_data.npz', allow_pickle=True)['data']
+
+    best_model = {}
+    acc_count = 0
+    np.seterr(divide='ignore')  # Suppress divide by zero warning
+    for idx, dt in tqdm(enumerate(data)):  # Iterate over data samples
+        maxloglik = None
+        for digit in word_hmms.keys():  # Iterate over hmms
+            obsloglik = log_multivariate_normal_density_diag(dt['lmfcc'], word_hmms[digit]['means'],
+                                                             word_hmms[digit]['covars'])
+            logalpha = forward(obsloglik, np.log(word_hmms[digit]['startprob']),
+                               np.log(word_hmms[digit]['transmat']))
+            loglik = logsumexp(logalpha[-1])
+            if maxloglik is None or maxloglik < loglik:  # If better likelihood found
+                best_model[idx] = digit  # Set most probable model
+                maxloglik = loglik  # Update max log likelihood
+        if dt['digit'] == best_model[idx]:
+            acc_count += 1
+        # print("The best model for utterance " + str(idx) + " was hmm: " + str(best_model[idx]))
+        # print("The real digit of utterance " + str(idx) + " was digit: " + str(dt['digit']) + "\n")
+    print("The accuracy of the predictions has been: " + str(np.round(acc_count / len(data) * 100, 2)) + "%")
 
 
 if __name__ == "__main__":
