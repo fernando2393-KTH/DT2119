@@ -139,17 +139,24 @@ def forward(log_emlik, log_startprob, log_transmat):
     return forward_prob
 
 
-def backward(log_emlik, log_startprob, log_transmat):
+def backward(log_emlik, log_transmat):
     """Backward (beta) probabilities in log domain.
 
     Args:
         log_emlik: NxM array of emission log likelihoods, N frames, M states
-        log_startprob: log probability to start in state i
         log_transmat: transition log probability from state i to j
 
     Output:
         backward_prob: NxM array of backward log probabilities for each of the M states in the model
     """
+
+    backward_prob = np.zeros(log_emlik.shape)
+
+    for n in reversed(range(backward_prob.shape[0] - 1)):
+        for i in range(backward_prob.shape[1]):
+            backward_prob[n, i] = logsumexp(log_transmat[i, :-1] + log_emlik[n + 1, :] + backward_prob[n + 1, :])
+
+    return backward_prob
 
 
 def viterbi(log_emlik, log_startprob, log_transmat, force_final_state=True):
@@ -184,7 +191,6 @@ def viterbi(log_emlik, log_startprob, log_transmat, force_final_state=True):
     return np.max(viterbi_loglik[-1]), np.array(viterbi_path)
 
 
-
 def statePosteriors(log_alpha, log_beta):
     """State posterior (gamma) probabilities in log domain.
 
@@ -196,6 +202,10 @@ def statePosteriors(log_alpha, log_beta):
     Output:
         log_gamma: NxM array of gamma probabilities for each of the M states in the model
     """
+
+    log_gamma = log_alpha + log_beta - logsumexp(log_alpha[log_alpha.shape[0] - 1])
+
+    return log_gamma
 
 
 def updateMeanAndVar(x, log_gamma, variance_floor=5.0):
@@ -214,8 +224,20 @@ def updateMeanAndVar(x, log_gamma, variance_floor=5.0):
          covars: MxD covariance (variance) vectors for each state
     """
 
+    gamma = np.exp(log_gamma)
+
+    means = np.zeros((log_gamma.shape[1], x.shape[1]))
+    covars = np.zeros(means.shape)
+    for k in range(means.shape[0]):
+        means[k] = np.sum(gamma[:, k][:, np.newaxis] * x, axis=0) / np.sum(gamma[:, k])
+        covars[k] = np.sum(gamma[:, k][:, np.newaxis] * np.power(x - means[k], 2), axis=0) / np.sum(gamma[:, k])
+    covars[covars < variance_floor] = variance_floor  # Transform values below threshold
+
+    return means, covars
+
 
 def main():
+    np.seterr(divide='ignore')  # Suppress divide by zero warning
     example = np.load('lab2_example.npz', allow_pickle=True)['example'].item()
     phone_hhms = np.load('lab2_models_all.npz', allow_pickle=True)['phoneHMMs'].item()
 
@@ -229,7 +251,6 @@ def main():
     best_model = {}
     acc_count = 0
     print("Running Forward algorithm...")
-    np.seterr(divide='ignore')  # Suppress divide by zero warning
     for idx, dt in tqdm(enumerate(data)):  # Iterate over data samples
         maxloglik = None
         for digit in word_hmms.keys():  # Iterate over hmms
@@ -247,13 +268,13 @@ def main():
         # print("The real digit of utterance " + str(idx) + " was digit: " + str(dt['digit']) + "\n")
     print("The accuracy of the predictions has been: " + str(np.round(acc_count / len(data) * 100, 2)) + "%")
 
-    # np.seterr(divide='ignore')  # Suppress divide by zero warning
-    # logalpha = forward(example['obsloglik'], np.log(word_hmms['o']['startprob']), np.log(word_hmms['o']['transmat']))
-    # vloglik, vpath = viterbi(example['obsloglik'], np.log(word_hmms['o']['startprob']),
-    #                          np.log(word_hmms['o']['transmat']))
-    # plt.pcolormesh(logalpha.T)
-    # plt.plot(vpath.T, color="red")
-    # plt.show()
+    np.seterr(divide='ignore')  # Suppress divide by zero warning
+    logalpha = forward(example['obsloglik'], np.log(word_hmms['o']['startprob']), np.log(word_hmms['o']['transmat']))
+    vloglik, vpath = viterbi(example['obsloglik'], np.log(word_hmms['o']['startprob']),
+                             np.log(word_hmms['o']['transmat']))
+    plt.pcolormesh(logalpha.T)
+    plt.plot(vpath.T, color="red")
+    plt.show()
 
     best_model = {}
     acc_count = 0
@@ -273,6 +294,35 @@ def main():
         # print("The best model for utterance " + str(idx) + " was hmm: " + str(best_model[idx]))
         # print("The real digit of utterance " + str(idx) + " was digit: " + str(dt['digit']) + "\n")
     print("The accuracy of the predictions has been: " + str(np.round(acc_count / len(data) * 100, 2)) + "%")
+
+    # Baum-Welch algorithm
+    best_loglik = None
+    best_model = None
+    for digit in word_hmms.keys():  # Iterate over hmms
+        print("Trying model " + str(digit))
+        means = word_hmms[digit]['means']
+        covars = word_hmms[digit]['covars']
+        obsloglik = log_multivariate_normal_density_diag(data[10]['lmfcc'], means, covars)
+        vloglik = 0
+        newloglik = viterbi(obsloglik, np.log(word_hmms[digit]['startprob']),
+                            np.log(word_hmms[digit]['transmat']))[0]
+        it = 0
+        while it < 20 and abs(newloglik - vloglik) > 1.0:
+            vloglik = newloglik  # Update value of log-likelihood
+            forward_prob = forward(obsloglik, np.log(word_hmms[digit]['startprob']),
+                                   np.log(word_hmms[digit]['transmat']))
+            backward_prob = backward(obsloglik, np.log(word_hmms[digit]['transmat']))
+            log_gamma = statePosteriors(forward_prob, backward_prob)
+            means, covars = updateMeanAndVar(data[10]['lmfcc'], log_gamma)
+            obsloglik = log_multivariate_normal_density_diag(data[10]['lmfcc'], means, covars)
+            newloglik = viterbi(obsloglik, np.log(word_hmms[digit]['startprob']),
+                                np.log(word_hmms[digit]['transmat']))[0]
+            it += 1  # Update number of iterations
+        print("Log-likelihood: " + str(newloglik) + ". Number of iterations until convergence: " + str(it))
+        if best_loglik is None or newloglik > best_loglik:
+            best_loglik = newloglik
+            best_model = digit
+    print("The best log-likelihood is: " + str(best_loglik) + ". It corresponds to the model " + str(best_model))
 
 
 if __name__ == "__main__":
