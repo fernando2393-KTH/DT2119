@@ -239,12 +239,12 @@ def updateMeanAndVar(x, log_gamma, variance_floor=5.0):
 def main():
     np.seterr(divide='ignore')  # Suppress divide by zero warning
     example = np.load('lab2_example.npz', allow_pickle=True)['example'].item()
-    phone_hhms = np.load('lab2_models_all.npz', allow_pickle=True)['phoneHMMs'].item()
+    phone_hmms = np.load('lab2_models_all.npz', allow_pickle=True)['phoneHMMs'].item()
 
     # Concatenate all digit hmms
     word_hmms = {}
     for digit in prondict.keys():
-        word_hmms[digit] = concatHMMs(phone_hhms, ['sil'] + prondict[digit] + ['sil'])
+        word_hmms[digit] = concatHMMs(phone_hmms, ['sil'] + prondict[digit] + ['sil'])
 
     data = np.load('lab2_data.npz', allow_pickle=True)['data']
 
