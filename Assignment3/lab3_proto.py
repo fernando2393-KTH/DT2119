@@ -1,3 +1,4 @@
+import tensorflow as tf
 import numpy as np
 from lab3_tools import *
 import sys
@@ -163,8 +164,8 @@ def main():
     valdata = np.concatenate((men_val, women_val))
     testdata = np.load('Data/testdata.npz', allow_pickle=True)['testdata']
 
-    dynamic = True
-    feature = 'mspec'
+    dynamic = False
+    feature = 'lmfcc'
     if dynamic:
         if not os.path.isfile(PATH + 'dynxtraindata_' + feature + '.npz') or not \
                 os.path.isfile(PATH + 'dynytraindata_' + feature + '.npz'):
@@ -231,16 +232,25 @@ def main():
     y_test = np_utils.to_categorical(y_test, output_dim)
 
     # Model train
-    if not os.path.isfile('model_' + feature + str(dynamic) + '.h5'):
-        classifier = model.classifier(x_train[0].shape, output_dim)
-        classifier.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
-        classifier.fit(x_train, y_train, validation_data=(x_val, y_val), batch_size=256, epochs=10)
-        classifier.save('model_' + feature + '.h5')
+    if dynamic:
+        if not os.path.isfile('model_' + feature + 'dynamic' + '.h5'):
+            classifier = model.classifier(x_train[0].shape, output_dim)
+            classifier.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
+            classifier.fit(x_train, y_train, validation_data=(x_val, y_val), batch_size=256, epochs=10)
+            classifier.save('model_' + feature + 'dynamic' + '.h5')
+        else:
+            classifier = tf.keras.models.load_model('model_' + feature + 'dynamic' + '.h5')
     else:
-        classifier = load_model('model_' + feature + str(dynamic) + '.h5')
+        if not os.path.isfile('model_' + feature + '.h5'):
+            classifier = model.classifier(x_train[0].shape, output_dim)
+            classifier.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
+            classifier.fit(x_train, y_train, validation_data=(x_val, y_val), batch_size=256, epochs=1)
+            classifier.save('model_' + feature + '.h5')
+        else:
+            classifier = tf.keras.models.load_model('model_' + feature + '.h5')
 
     # Model predict
-    prediction = classifier.predict((x_test, y_test), batch_size=256)
+    prediction = classifier.evaluate(x_test, y=y_test, batch_size=256)
     print("Loss: " + str(prediction[0]) + "\tAccuracy:" + str(prediction[1]))
 
 
