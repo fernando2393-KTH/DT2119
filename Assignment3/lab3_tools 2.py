@@ -2,6 +2,7 @@ import numpy as np
 import os
 from pysndfile import sndio
 
+
 def path2info(path):
     """
     path2info: parses paths in the TIDIGIT format and extracts information
@@ -17,6 +18,7 @@ def path2info(path):
     repetition = filename[-5]
     return gender, speakerID, digits, repetition
 
+
 def loadAudio(filename):
     """
     loadAudio: loads audio data from file using pysndfile
@@ -30,6 +32,7 @@ def loadAudio(filename):
     samplingrate = sndobj[1]
     samples = np.array(sndobj[0])
     return samples, samplingrate
+
 
 def frames2trans(sequence, outfilename=None, timestep=0.01):
     """
@@ -57,5 +60,3 @@ def frames2trans(sequence, outfilename=None, timestep=0.01):
         with open(outfilename, 'w') as f:
             f.write(trans)
     return trans
-
-        
