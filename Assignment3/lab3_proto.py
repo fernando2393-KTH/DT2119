@@ -164,7 +164,7 @@ def main():
     valdata = np.concatenate((men_val, women_val))
     testdata = np.load('Data/testdata.npz', allow_pickle=True)['testdata']
 
-    dynamic = False
+    dynamic = True
     feature = 'lmfcc'
     if dynamic:
         if not os.path.isfile(PATH + 'dynxtraindata_' + feature + '.npz') or not \
@@ -174,7 +174,8 @@ def main():
             np.savez(PATH + 'dynytraindata_' + feature + '.npz', traindata=y)
         x_train = np.load(PATH + 'dynxtraindata_' + feature + '.npz', allow_pickle=True)['traindata']
         y_train = np.load(PATH + 'dynytraindata_' + feature + '.npz', allow_pickle=True)['traindata']
-        if not os.path.isfile('dynxvaldata.npz') or not os.path.isfile('dynyvaldata_' + feature + '.npz'):
+        if not os.path.isfile(PATH + 'dynxvaldata_' + feature + '.npz') or not \
+                os.path.isfile(PATH + 'dynyvaldata_' + feature + '.npz'):
             x, y = dynamic_features(valdata, feature_name=feature, dynamic=dynamic)
             np.savez(PATH + 'dynxvaldata_' + feature + '.npz', valdata=x)
             np.savez(PATH + 'dynyvaldata_' + feature + '.npz', valdata=y)
@@ -251,7 +252,7 @@ def main():
 
     # Model predict
     prediction = classifier.evaluate(x_test, y=y_test, batch_size=256)
-    print("Loss: " + str(prediction[0]) + "\tAccuracy:" + str(prediction[1]))
+    print("Loss: " + str(prediction[0]) + "\tAccuracy: " + str(prediction[1]))
 
 
 if __name__ == "__main__":
