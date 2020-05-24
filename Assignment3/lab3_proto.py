@@ -4,17 +4,18 @@ from lab3_tools import *
 import sys
 import os
 import math
-sys.path.append('..')
 from Assignment1 import lab1_proto
 from Assignment2 import prondict, lab2_proto, lab2_tools
 from tqdm import tqdm
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.preprocessing import StandardScaler, normalize
+from sklearn.metrics import confusion_matrix
 from keras.utils import np_utils
-from keras.models import load_model
 import model
+import matplotlib.pyplot as plt
+sys.path.append('..')
 
 PATH = 'Data/'
+
 
 def words2phones(wordList, pronDict, addSilence=True, addShortPause=True):
     """ word2phones: converts word level to phone level transcription adding silence
@@ -106,6 +107,45 @@ def flatten_targets(targets):
     return np.hstack([np.hstack(targets[i]) for i in range(len(targets))])
 
 
+def group_phonem(data):
+    for i in range(data.shape[0]):
+        data[i] = data[i].split('_')[0]
+
+    return data
+
+
+def merge_states(data, labels):
+    new_data = np.zeros((1, data.shape[1]))
+    new_labels = np.zeros((1, labels.shape[1]))
+    aux_data = np.copy(data[0])
+    aux_label = np.argmax(labels[0])
+    for i in tqdm(range(1, data.shape[0])):
+        if np.argmax(labels[i]) == aux_label:
+            aux_data += data[i]
+        else:
+            aux_data = normalize(aux_data.reshape(1, -1)).reshape(1, -1)
+            new_data[-1] = aux_data
+            new_labels[-1, aux_label] = 1  # Set as 1-hot encoding
+            new_data = np.vstack((new_data, np.zeros((1, data.shape[1]))))
+            new_labels = np.vstack((new_labels, np.zeros((1, labels.shape[1]))))
+            aux_data = np.copy(data[i])
+            aux_label = np.argmax(labels[i])
+        if i == data.shape[0] - 1:
+            aux_data = normalize(aux_data.reshape(1, -1)).reshape(1, -1)
+            new_data[-1] = aux_data
+            new_labels[-1, aux_label] = 1
+
+    return new_data, new_labels
+
+
+def compute_per(y_per, y_true, likelihood):
+    error = 0
+    for i in range(y_per.shape[0]):
+        error += likelihood[i, y_per[i]] - likelihood[i, y_true[i]]
+
+    return error
+
+
 def target_to_index(target, state_list):
     new_target = np.zeros(target.shape, dtype=int)
     for i in range(target.shape[0]):
@@ -117,12 +157,12 @@ def target_to_index(target, state_list):
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
-                          cmap=plt.cm.Blues):
+                          cmap='Blues'):
     """
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
     """
-    plt.figure(figsize = (5,5))
+    plt.figure(figsize=(10, 10))
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     plt.title(title)
     plt.colorbar()
@@ -132,11 +172,11 @@ def plot_confusion_matrix(cm, classes,
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
 
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, cm[i, j],
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
+    # thresh = cm.max() / 2.
+    # for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+    #     plt.text(j, i, cm[i, j],
+    #              horizontalalignment="center",
+    #              color="white" if cm[i, j] > thresh else "black")
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
@@ -279,18 +319,49 @@ def main():
         else:
             classifier = tf.keras.models.load_model('model_' + feature + '.h5')
 
-    # Model predict
-    prediction = classifier.evaluate(x_test, y=y_test, batch_size=256)
-    print("Loss: " + str(prediction[0]) + "\tAccuracy: " + str(prediction[1]))
-    
-    y_pred = model.predict(xtest)
-
-    Y_pred = np.argmax(y_pred, axis = 1) 
-    Y_true = np.argmax(y_test, axis = 1) 
-
-    confusion_mtx  = confusion_matrix(Y_true, Y_pred) 
-
-    plot_confusion_matrix(confusion_mtx, classes = list(len(state_list)))
+    group = True
+    merge = True
+    y_pred = classifier.predict(x_test, batch_size=256)
+    if group:
+        if merge:
+            y_pred = np.argmax(y_pred, axis=1)
+            y_test = np.argmax(y_test, axis=1)
+            y_pred = np.array([state_list[item] for item in y_pred])
+            y_test = np.array([state_list[item] for item in y_test])
+            y_pred = group_phonem(y_pred)
+            y_test = group_phonem(y_test)
+            y_pred = target_to_index(y_pred, sorted(set(group_phonem(np.array(state_list)))))
+            y_test = target_to_index(y_test, sorted(set(group_phonem(np.array(state_list)))))
+            y_pred = np_utils.to_categorical(y_pred, len(set(group_phonem(np.array(state_list)))))
+            y_test = np_utils.to_categorical(y_test, len(set(group_phonem(np.array(state_list)))))
+            likelihood, y_test = merge_states(y_pred, y_test)
+            y_pred = np.argmax(likelihood, axis=1)
+            y_true = np.argmax(y_test, axis=1)
+            phone_error_rate = compute_per(y_pred, y_true, likelihood)
+            print("Phone Error Rate: " + str(phone_error_rate))
+        else:
+            y_pred = np.argmax(y_pred, axis=1)
+            y_true = np.argmax(y_test, axis=1)
+            y_pred = np.array([state_list[item] for item in y_pred])
+            y_true = np.array([state_list[item] for item in y_true])
+            y_pred = group_phonem(y_pred)
+            y_true = group_phonem(y_true)
+            confusion_mtx = confusion_matrix(y_true, y_pred)
+            plot_confusion_matrix(confusion_mtx, classes=sorted(set(group_phonem(np.array(state_list)))))
+            print("Total accuracy: " + str(np.sum(y_true == y_pred) / y_true.shape[0]))
+    else:
+        if merge:
+            likelihood, y_test = merge_states(y_pred, y_test)
+            y_pred = np.argmax(likelihood, axis=1)
+            y_true = np.argmax(y_test, axis=1)
+            phone_error_rate = compute_per(y_pred, y_true, likelihood)
+            print("Phone Error Rate: " + str(phone_error_rate))
+        else:
+            y_pred = np.argmax(y_pred, axis=1)
+            y_true = np.argmax(y_test, axis=1)
+            confusion_mtx = confusion_matrix(y_true, y_pred)
+            plot_confusion_matrix(confusion_mtx, classes=state_list)
+            print("Total accuracy: " + str(np.sum(y_true == y_pred) / y_true.shape[0]))
 
 
 if __name__ == "__main__":
