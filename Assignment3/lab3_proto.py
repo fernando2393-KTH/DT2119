@@ -9,12 +9,12 @@ from Assignment1 import lab1_proto
 from Assignment2 import prondict, lab2_proto, lab2_tools
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import confusion_matrix, accuracy_score
 from keras.utils import np_utils
 from keras.models import load_model
 import model
 
 PATH = 'Data/'
-
 
 def words2phones(wordList, pronDict, addSilence=True, addShortPause=True):
     """ word2phones: converts word level to phone level transcription adding silence
@@ -112,6 +112,35 @@ def target_to_index(target, state_list):
         new_target[i] = state_list.index(target[i])
 
     return new_target
+
+
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    plt.figure(figsize = (5,5))
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=90)
+    plt.yticks(tick_marks, classes)
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, cm[i, j],
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.show()
 
 
 def main():
@@ -253,6 +282,15 @@ def main():
     # Model predict
     prediction = classifier.evaluate(x_test, y=y_test, batch_size=256)
     print("Loss: " + str(prediction[0]) + "\tAccuracy: " + str(prediction[1]))
+    
+    y_pred = model.predict(xtest)
+
+    Y_pred = np.argmax(y_pred, axis = 1) 
+    Y_true = np.argmax(y_test, axis = 1) 
+
+    confusion_mtx  = confusion_matrix(Y_true, Y_pred) 
+
+    plot_confusion_matrix(confusion_mtx, classes = list(len(state_list)))
 
 
 if __name__ == "__main__":
