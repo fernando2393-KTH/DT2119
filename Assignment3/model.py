@@ -8,6 +8,6 @@ def classifier(inpt, output_dim):
     model.add(layers.Dense(256, activation='relu'))
     model.add(layers.Dense(256, activation='relu'))
     model.add(layers.Dense(256, activation='relu'))
-    model.add(layers.Dense(output_dim, activation='relu'))
+    model.add(layers.Dense(output_dim, activation='softmax'))
 
     return model

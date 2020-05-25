@@ -62,12 +62,13 @@ def forcedAlignment(lmfcc, phoneHMMs, phoneTrans):
 
     utteranceHMM = lab2_proto.concatHMMs(phoneHMMs, phoneTrans)
     obsloglik = lab2_tools.log_multivariate_normal_density_diag(lmfcc, utteranceHMM['means'], utteranceHMM['covars'])
-    stateTransviterbiStateTrans = lab2_proto.viterbi(obsloglik, np.log(utteranceHMM['startprob'] + np.finfo('float').eps),
+    viterbiStateTrans = lab2_proto.viterbi(obsloglik, np.log(utteranceHMM['startprob']
+                                                             + np.finfo('float').eps),
                                            np.log(utteranceHMM['transmat'] + np.finfo('float').eps))[1]
     phones = sorted(phoneHMMs.keys())
     nstates = {phone: phoneHMMs[phone]['means'].shape[0] for phone in phones}
     stateTrans = [phone + '_' + str(stateid) for phone in phoneTrans for stateid in range(nstates[phone])]
-    phoneme_path = [stateTrans[int(idx)] for idx in stateTransviterbiStateTrans]
+    phoneme_path = [stateTrans[int(idx)] for idx in viterbiStateTrans]
 
     return phoneme_path
 
@@ -154,7 +155,7 @@ def target_to_index(target, state_list):
     return new_target
 
 
-def plot_confusion_matrix(cm, classes,
+def plot_confusion_matrix(cm, item, classes,
                           normalize=False,
                           title='Confusion matrix',
                           cmap='Blues'):
@@ -171,16 +172,10 @@ def plot_confusion_matrix(cm, classes,
     plt.yticks(tick_marks, classes)
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-
-    # thresh = cm.max() / 2.
-    # for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-    #     plt.text(j, i, cm[i, j],
-    #              horizontalalignment="center",
-    #              color="white" if cm[i, j] > thresh else "black")
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.show()
+    plt.savefig('Plots/Confusion_Matrix_' + item + '.png')
 
 
 def main():
@@ -306,7 +301,7 @@ def main():
         if not os.path.isfile('model_' + feature + 'dynamic' + '.h5'):
             classifier = model.classifier(x_train[0].shape, output_dim)
             classifier.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
-            classifier.fit(x_train, y_train, validation_data=(x_val, y_val), batch_size=256, epochs=10)
+            classifier.fit(x_train, y_train, validation_data=(x_val, y_val), batch_size=256, epochs=100)
             classifier.save('model_' + feature + 'dynamic' + '.h5')
         else:
             classifier = tf.keras.models.load_model('model_' + feature + 'dynamic' + '.h5')
@@ -314,7 +309,7 @@ def main():
         if not os.path.isfile('model_' + feature + '.h5'):
             classifier = model.classifier(x_train[0].shape, output_dim)
             classifier.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
-            classifier.fit(x_train, y_train, validation_data=(x_val, y_val), batch_size=256, epochs=1)
+            classifier.fit(x_train, y_train, validation_data=(x_val, y_val), batch_size=256, epochs=100)
             classifier.save('model_' + feature + '.h5')
         else:
             classifier = tf.keras.models.load_model('model_' + feature + '.h5')
@@ -347,7 +342,7 @@ def main():
             y_pred = group_phonem(y_pred)
             y_true = group_phonem(y_true)
             confusion_mtx = confusion_matrix(y_true, y_pred)
-            plot_confusion_matrix(confusion_mtx, classes=sorted(set(group_phonem(np.array(state_list)))))
+            plot_confusion_matrix(confusion_mtx,  'Phoneme', classes=sorted(set(group_phonem(np.array(state_list)))))
             print("Total accuracy: " + str(np.sum(y_true == y_pred) / y_true.shape[0]))
     else:
         if merge:
@@ -360,7 +355,7 @@ def main():
             y_pred = np.argmax(y_pred, axis=1)
             y_true = np.argmax(y_test, axis=1)
             confusion_mtx = confusion_matrix(y_true, y_pred)
-            plot_confusion_matrix(confusion_mtx, classes=state_list)
+            plot_confusion_matrix(confusion_mtx, 'State', classes=state_list)
             print("Total accuracy: " + str(np.sum(y_true == y_pred) / y_true.shape[0]))
 
 
